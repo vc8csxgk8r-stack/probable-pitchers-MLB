@@ -2,74 +2,44 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>MLB Probable Pitchers • Stats + Note Matchup</title>
+    <title>MLB Probable Pitchers • Matchups</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 30px; background: #f8f9fa; }
-        h1 { color: #003087; }
-        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background: #003087; color: white; }
-        .pitcher-name { font-weight: bold; }
-        .stats { font-size: 0.9em; color: #555; }
-        .grade-A { background: #4ade80; color: black; font-weight: bold; padding: 4px 10px; border-radius: 4px; }
-        .grade-B { background: #a3e635; color: black; font-weight: bold; padding: 4px 10px; border-radius: 4px; }
-        .grade-C { background: #fb923c; color: black; font-weight: bold; padding: 4px 10px; border-radius: 4px; }
-        .grade-D { background: #f87171; color: black; font-weight: bold; padding: 4px 10px; border-radius: 4px; }
-        .note { font-size: 0.85em; color: #444; }
+        .headshot { width: 80px; height: 80px; object-fit: cover; border-radius: 9999px; border: 3px solid #003087; }
+        .grade-A { background: #22c55e; }
+        .grade-B { background: #a3e635; }
+        .grade-C { background: #f59e0b; }
+        .grade-D { background: #ef4444; }
     </style>
 </head>
-<body>
-    <h1>🔥 MLB Prochains Starter Pitchers + Note Matchup</h1>
-    <form method="get">
-        <label>Date : </label>
-        <input type="date" name="date" value="{{ selected_date }}">
-        <button type="submit">Voir les probables</button>
-    </form>
+<body class="bg-zinc-950 text-white min-h-screen">
+    <div class="max-w-6xl mx-auto p-6">
+        <h1 class="text-4xl font-bold text-center mb-8 flex items-center justify-center gap-3">
+            🔥 MLB Probable Pitchers
+        </h1>
 
-    <table>
-        <tr>
-            <th>Heure</th>
-            <th>Match</th>
-            <th colspan="2">Pitcher Visiteurs</th>
-            <th colspan="2">Pitcher Domicile</th>
-            <th>Stade</th>
-        </tr>
-        {% for g in games %}
-        <tr>
-            <td><strong>{{ g.time }}</strong></td>
-            <td><strong>{{ g.away_team }}</strong> @ <strong>{{ g.home_team }}</strong></td>
-            
-            <!-- Visiteurs -->
-            <td>
-                <span class="pitcher-name">{{ g.away_pitcher.name }}</span><br>
-                <span class="stats">
-                    ERA {{ g.away_pitcher.stats.era }} • {{ g.away_pitcher.stats.record }} • WHIP {{ g.away_pitcher.stats.whip }} • K/9 {{ g.away_pitcher.stats.k9 }}
-                </span>
-            </td>
-            <td><span class="grade-{{ g.away_pitcher.grade }}">Grade {{ g.away_pitcher.grade }}</span></td>
-            
-            <!-- Domicile -->
-            <td>
-                <span class="pitcher-name">{{ g.home_pitcher.name }}</span><br>
-                <span class="stats">
-                    ERA {{ g.home_pitcher.stats.era }} • {{ g.home_pitcher.stats.record }} • WHIP {{ g.home_pitcher.stats.whip }} • K/9 {{ g.home_pitcher.stats.k9 }}
-                </span>
-            </td>
-            <td><span class="grade-{{ g.home_pitcher.grade }}">Grade {{ g.home_pitcher.grade }}</span></td>
-            
-            <td>{{ g.venue }}</td>
-        </tr>
-        <tr style="background:#f8f9fa;">
-            <td colspan="7" class="note">
-                👉 Visiteurs : {{ g.away_pitcher.note }}<br>
-                👉 Domicile : {{ g.home_pitcher.note }}
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
+        <form method="get" class="flex justify-center gap-4 mb-10">
+            <input type="date" name="date" value="{{ selected_date }}" 
+                   class="bg-zinc-900 border border-zinc-700 rounded-xl px-5 py-3 text-lg">
+            <button type="submit" 
+                    class="bg-blue-600 hover:bg-blue-700 px-8 rounded-xl font-semibold">
+                Voir
+            </button>
+        </form>
 
-    {% if not games %}
-        <p style="text-align:center; margin-top:30px;">Aucun match ou probable pitchers pas encore annoncés pour cette date.</p>
-    {% endif %}
-</body>
-</html>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {% for g in games %}
+            <div class="bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-800 hover:border-blue-500 transition-all">
+                <!-- Header -->
+                <div class="bg-zinc-800 px-6 py-4 flex justify-between items-center">
+                    <div class="text-xl font-bold">{{ g.time }}</div>
+                    <div class="text-lg">
+                        <strong>{{ g.away_team }}</strong> @ <strong>{{ g.home_team }}</strong>
+                    </div>
+                </div>
+
+                <div class="p-6 grid grid-cols-2 gap-6">
+                    <!-- Away Pitcher -->
+                    <div class="text-center">
+                        {% if g.away_pitcher.id %}
+                        <img src="https://img.mlbstatic.com
