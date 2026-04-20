@@ -7,26 +7,16 @@ app = Flask(__name__)
 
 SEASON = "2026"
 
-# ==================== PARK FACTORS (ajustement pour le pitcher) ====================
+# ==================== PARK FACTORS ====================
 PARK_FACTORS = {
-    "Coors Field": -1,           # très hitter-friendly
-    "Great American Ball Park": -0.5,
-    "Yankee Stadium": -0.5,
-    "Fenway Park": -0.5,
-    "Oracle Park": 1,            # très pitcher-friendly
-    "Dodger Stadium": 1,
-    "T-Mobile Park": 1,
-    "PETCO Park": 1,
-    "Nationals Park": 0.5,
-    "Progressive Field": 0.5,
-    "Angel Stadium": 0.5,
-    "Busch Stadium": 0.5,
-    # les autres stades = 0 (neutre)
+    "Coors Field": -1, "Great American Ball Park": -0.5, "Yankee Stadium": -0.5,
+    "Fenway Park": -0.5, "Oracle Park": 1, "Dodger Stadium": 1, "T-Mobile Park": 1,
+    "PETCO Park": 1, "Nationals Park": 0.5, "Progressive Field": 0.5,
+    "Angel Stadium": 0.5, "Busch Stadium": 0.5,
 }
 
 @lru_cache(maxsize=1)
 def get_standings():
-    """Récupère le win% de chaque équipe (une seule fois par session)"""
     url = f"https://statsapi.mlb.com/api/v1/standings?season={SEASON}&leagueId=103,104"
     try:
         r = requests.get(url, timeout=10)
@@ -35,48 +25,86 @@ def get_standings():
         standings = {}
         for record in data.get("records", []):
             for team in record.get("teamRecords", []):
-                team_id = team["team"]["id"]
-                pct = float(team["leagueRecord"]["pct"])
-                standings[team_id] = pct
+                standings[team["team"]["id"]] = float(team["leagueRecord"]["pct"])
         return standings
     except:
         return {}
 
 def get_pitcher_stats(pitcher_id):
-    """Récupère les stats saison 2026 du pitcher"""
+    """Version corrigée et plus fiable avec hydrate"""
     if not pitcher_id:
-        return {"era": "—", "record": "—", "whip": "—", "k9": "—"}
+        return {"era": "—", "record": "—", "whip": "—", "k9": "—", "year": SEASON}
     
-    url = f"https://statsapi.mlb.com/api/v1/people/{pitcher_id}/stats"
-    params = {"stats": "season", "group": "pitching", "season": SEASON}
+    url = f"https://statsapi.mlb.com/api/v1/people/{pitcher_id}"
+    params = {
+        "hydrate": f"stats(group=[pitching],type=[season],season={SEASON})"
+    }
+    
     try:
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        
+        people = data.get("people", [])
+        if not people:
+            return {"era": "—", "record": "—", "whip": "—", "k9": "—", "year": SEASON}
+        
+        stats_list = people[0].get("stats", [])
+        for stat_group in stats_list:
+            if stat_group.get("group", {}).get("displayName") == "pitching":
+                splits = stat_group.get("splits", [])
+                if splits:
+                    stat = splits[0].get("stat", {})
+                    ip = float(stat.get("inningsPitched", 0) or 0)
+                    so = int(stat.get("strikeOuts", 0) or 0)
+                    k9 = round(so / ip * 9, 1) if ip > 0 else 0.0
+                    
+                    return {
+                        "era": stat.get("era", "—"),
+                        "record": f"{stat.get('wins',0)}-{stat.get('losses',0)}",
+                        "whip": stat.get("whip", "—"),
+                        "k9": k9,
+                        "year": SEASON
+                    }
+    except:
+        pass
+    
+    # Fallback : stats de la saison précédente (utile début 2026)
+    try:
+        params["hydrate"] = f"stats(group=[pitching],type=[season],season=2025)"
         r = requests.get(url, params=params, timeout=8)
         r.raise_for_status()
         data = r.json()
-        if data.get("stats") and data["stats"][0].get("splits"):
-            stat = data["stats"][0]["splits"][0]["stat"]
-            ip = stat.get("inningsPitched", 0)
-            so = stat.get("strikeOuts", 0)
-            k9 = round(so / ip * 9, 1) if ip > 0 else 0.0
-            
-            return {
-                "era": stat.get("era", "—"),
-                "record": f"{stat.get('wins',0)}-{stat.get('losses',0)}",
-                "whip": stat.get("whip", "—"),
-                "k9": k9
-            }
+        # même parsing que ci-dessus...
+        people = data.get("people", [])
+        if people:
+            stats_list = people[0].get("stats", [])
+            for stat_group in stats_list:
+                if stat_group.get("group", {}).get("displayName") == "pitching":
+                    splits = stat_group.get("splits", [])
+                    if splits:
+                        stat = splits[0].get("stat", {})
+                        ip = float(stat.get("inningsPitched", 0) or 0)
+                        so = int(stat.get("strikeOuts", 0) or 0)
+                        k9 = round(so / ip * 9, 1) if ip > 0 else 0.0
+                        return {
+                            "era": stat.get("era", "—"),
+                            "record": f"{stat.get('wins',0)}-{stat.get('losses',0)}",
+                            "whip": stat.get("whip", "—"),
+                            "k9": k9,
+                            "year": "2025"
+                        }
     except:
         pass
-    return {"era": "—", "record": "—", "whip": "—", "k9": "—"}
+    
+    return {"era": "—", "record": "—", "whip": "—", "k9": "—", "year": SEASON}
 
+# ==================== le reste du code reste IDENTIQUE ====================
 def get_matchup_grade(era_str, venue_name, opponent_win_pct=None):
-    """Calcule la note A/B/C/D + commentaire"""
-    if era_str == "—" or not era_str.replace(".", "").replace("-", "").isdigit():
+    if era_str == "—" or not str(era_str).replace(".", "").replace("-", "").isdigit():
         return "C", "Stats non disponibles"
     
     era = float(era_str)
-    
-    # Note de base
     if era <= 3.00: grade = "A"
     elif era <= 3.75: grade = "B"
     elif era <= 4.75: grade = "C"
@@ -85,7 +113,6 @@ def get_matchup_grade(era_str, venue_name, opponent_win_pct=None):
     adjustment = 0
     comments = []
     
-    # Stade
     park_adj = PARK_FACTORS.get(venue_name, 0)
     if park_adj < 0:
         adjustment -= 1
@@ -96,7 +123,6 @@ def get_matchup_grade(era_str, venue_name, opponent_win_pct=None):
     else:
         comments.append("🏟️ Stade neutre")
     
-    # Équipe adverse
     if opponent_win_pct:
         if opponent_win_pct > 0.55:
             adjustment -= 1
@@ -107,9 +133,8 @@ def get_matchup_grade(era_str, venue_name, opponent_win_pct=None):
         else:
             comments.append("⚔️ Adversaire moyen")
     
-    # Application de l'ajustement
-    grade_num = ord(grade) - ord("A")          # A=0, B=1, ...
-    grade_num = max(0, min(3, grade_num - adjustment))  # +facile → meilleure note
+    grade_num = ord(grade) - ord("A")
+    grade_num = max(0, min(3, grade_num - adjustment))
     final_grade = chr(ord("A") + grade_num)
     
     return final_grade, " / ".join(comments)
@@ -160,18 +185,8 @@ def index():
                 "time": game["gameDate"][11:16] + " UTC",
                 "away_team": away["team"]["name"],
                 "home_team": home["team"]["name"],
-                "away_pitcher": {
-                    "name": away_name,
-                    "stats": away_stats,
-                    "grade": away_grade,
-                    "note": away_note
-                },
-                "home_pitcher": {
-                    "name": home_name,
-                    "stats": home_stats,
-                    "grade": home_grade,
-                    "note": home_note
-                },
+                "away_pitcher": {"name": away_name, "stats": away_stats, "grade": away_grade, "note": away_note},
+                "home_pitcher": {"name": home_name, "stats": home_stats, "grade": home_grade, "note": home_note},
                 "venue": venue_name
             })
     
