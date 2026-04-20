@@ -3,7 +3,7 @@ services:
     build: .
     ports:
       - "8098:8080"
-    volumes:
-      - ./app:/app
     environment:
       - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    restart: unless-stopped
