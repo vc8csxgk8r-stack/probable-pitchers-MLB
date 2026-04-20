@@ -31,11 +31,10 @@ def get_standings():
         return {}
 
 def get_pitcher_stats(pitcher_id):
-    """Version complète et robuste"""
     if not pitcher_id:
         return {"era": "—", "record": "—", "whip": "—", "k9": "—"}
 
-    # Essai saison 2026
+    # === Saison 2026 ===
     url = f"https://statsapi.mlb.com/api/v1/people/{pitcher_id}"
     params = {"hydrate": f"stats(group=[pitching],type=[season],season={SEASON})"}
     
@@ -45,8 +44,7 @@ def get_pitcher_stats(pitcher_id):
         data = r.json()
         people = data.get("people", [])
         if people:
-            stats_list = people[0].get("stats", [])
-            for group in stats_list:
+            for group in people[0].get("stats", []):
                 if group.get("group", {}).get("displayName") == "pitching":
                     splits = group.get("splits", [])
                     if splits:
@@ -63,7 +61,7 @@ def get_pitcher_stats(pitcher_id):
     except:
         pass
 
-    # Fallback saison 2025 (début de saison)
+    # === Fallback Saison 2025 ===
     try:
         params["hydrate"] = f"stats(group=[pitching],type=[season],season=2025)"
         r = requests.get(url, params=params, timeout=8)
@@ -71,12 +69,110 @@ def get_pitcher_stats(pitcher_id):
         data = r.json()
         people = data.get("people", [])
         if people:
-            stats_list = people[0].get("stats", [])
-            for group in stats_list:
+            for group in people[0].get("stats", []):
                 if group.get("group", {}).get("displayName") == "pitching":
                     splits = group.get("splits", [])
                     if splits:
                         stat = splits[0].get("stat", {})
                         ip = float(stat.get("inningsPitched", 0) or 0)
                         so = int(stat.get("strikeOuts", 0) or 0)
-                        k9 =
+                        k9 = round(so / ip * 9, 1) if ip > 0 else 0.0
+                        return {
+                            "era": stat.get("era", "—"),
+                            "record": f"{stat.get('wins',0)}-{stat.get('losses',0)}",
+                            "whip": stat.get("whip", "—"),
+                            "k9": k9
+                        }
+    except:
+        pass
+
+    return {"era": "—", "record": "—", "whip": "—", "k9": "—"}
+
+def get_matchup_grade(era_str, venue_name, opponent_win_pct=None):
+    if era_str == "—" or not str(era_str).replace(".", "").replace("-", "").isdigit():
+        return "C", "Stats non disponibles"
+    
+    era = float(era_str)
+    if era <= 3.00: grade = "A"
+    elif era <= 3.75: grade = "B"
+    elif era <= 4.75: grade = "C"
+    else: grade = "D"
+    
+    adjustment = 0
+    comments = []
+    
+    park_adj = PARK_FACTORS.get(venue_name, 0)
+    if park_adj < 0:
+        adjustment -= 1
+        comments.append("🏟️ Stade hitter-friendly")
+    elif park_adj > 0:
+        adjustment += 1
+        comments.append("🏟️ Stade pitcher-friendly")
+    else:
+        comments.append("🏟️ Stade neutre")
+    
+    if opponent_win_pct:
+        if opponent_win_pct > 0.55:
+            adjustment -= 1
+            comments.append("⚔️ Adversaire fort")
+        elif opponent_win_pct < 0.45:
+            adjustment += 1
+            comments.append("⚔️ Adversaire faible")
+        else:
+            comments.append("⚔️ Adversaire moyen")
+    
+    grade_num = ord(grade) - ord("A")
+    grade_num = max(0, min(3, grade_num - adjustment))
+    final_grade = chr(ord("A") + grade_num)
+    
+    return final_grade, " / ".join(comments)
+
+@app.route("/")
+def index():
+    selected_date = request.args.get("date", date.today().strftime("%Y-%m-%d"))
+    standings = get_standings()
+    
+    url = "https://statsapi.mlb.com/api/v1/schedule"
+    params = {"sportId": 1, "date": selected_date, "hydrate": "probablePitcher,venue"}
+    
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+    except:
+        data = {"dates": []}
+    
+    games = []
+    if data.get("dates") and len(data["dates"]) > 0:
+        for game in data["dates"][0]["games"]:
+            away = game["teams"]["away"]
+            home = game["teams"]["home"]
+            venue_name = game.get("venue", {}).get("name", "—")
+            
+            away_p = away.get("probablePitcher", {})
+            away_id = away_p.get("id")
+            away_name = away_p.get("fullName", "TBD")
+            away_stats = get_pitcher_stats(away_id)
+            away_opp_winpct = standings.get(home["team"]["id"])
+            away_grade, away_note = get_matchup_grade(away_stats["era"], venue_name, away_opp_winpct)
+            
+            home_p = home.get("probablePitcher", {})
+            home_id = home_p.get("id")
+            home_name = home_p.get("fullName", "TBD")
+            home_stats = get_pitcher_stats(home_id)
+            home_opp_winpct = standings.get(away["team"]["id"])
+            home_grade, home_note = get_matchup_grade(home_stats["era"], venue_name, home_opp_winpct)
+            
+            games.append({
+                "time": game["gameDate"][11:16] + " UTC",
+                "away_team": away["team"]["name"],
+                "home_team": home["team"]["name"],
+                "away_pitcher": {"id": away_id, "name": away_name, "stats": away_stats, "grade": away_grade, "note": away_note},
+                "home_pitcher": {"id": home_id, "name": home_name, "stats": home_stats, "grade": home_grade, "note": home_note},
+                "venue": venue_name
+            })
+    
+    return render_template("index.html", games=games, selected_date=selected_date)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080, debug=True)
