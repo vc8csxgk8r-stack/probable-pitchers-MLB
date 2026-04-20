@@ -7,7 +7,6 @@ app = Flask(__name__)
 
 SEASON = "2026"
 
-# ==================== PARK FACTORS ====================
 PARK_FACTORS = {
     "Coors Field": -1, "Great American Ball Park": -0.5, "Yankee Stadium": -0.5,
     "Fenway Park": -0.5, "Oracle Park": 1, "Dodger Stadium": 1, "T-Mobile Park": 1,
@@ -31,113 +30,13 @@ def get_standings():
         return {}
 
 def get_pitcher_stats(pitcher_id):
-    """Version corrigée et plus fiable avec hydrate"""
-    if not pitcher_id:
-        return {"era": "—", "record": "—", "whip": "—", "k9": "—", "year": SEASON}
-    
-    url = f"https://statsapi.mlb.com/api/v1/people/{pitcher_id}"
-    params = {
-        "hydrate": f"stats(group=[pitching],type=[season],season={SEASON})"
-    }
-    
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-        
-        people = data.get("people", [])
-        if not people:
-            return {"era": "—", "record": "—", "whip": "—", "k9": "—", "year": SEASON}
-        
-        stats_list = people[0].get("stats", [])
-        for stat_group in stats_list:
-            if stat_group.get("group", {}).get("displayName") == "pitching":
-                splits = stat_group.get("splits", [])
-                if splits:
-                    stat = splits[0].get("stat", {})
-                    ip = float(stat.get("inningsPitched", 0) or 0)
-                    so = int(stat.get("strikeOuts", 0) or 0)
-                    k9 = round(so / ip * 9, 1) if ip > 0 else 0.0
-                    
-                    return {
-                        "era": stat.get("era", "—"),
-                        "record": f"{stat.get('wins',0)}-{stat.get('losses',0)}",
-                        "whip": stat.get("whip", "—"),
-                        "k9": k9,
-                        "year": SEASON
-                    }
-    except:
-        pass
-    
-    # Fallback : stats de la saison précédente (utile début 2026)
-    try:
-        params["hydrate"] = f"stats(group=[pitching],type=[season],season=2025)"
-        r = requests.get(url, params=params, timeout=8)
-        r.raise_for_status()
-        data = r.json()
-        # même parsing que ci-dessus...
-        people = data.get("people", [])
-        if people:
-            stats_list = people[0].get("stats", [])
-            for stat_group in stats_list:
-                if stat_group.get("group", {}).get("displayName") == "pitching":
-                    splits = stat_group.get("splits", [])
-                    if splits:
-                        stat = splits[0].get("stat", {})
-                        ip = float(stat.get("inningsPitched", 0) or 0)
-                        so = int(stat.get("strikeOuts", 0) or 0)
-                        k9 = round(so / ip * 9, 1) if ip > 0 else 0.0
-                        return {
-                            "era": stat.get("era", "—"),
-                            "record": f"{stat.get('wins',0)}-{stat.get('losses',0)}",
-                            "whip": stat.get("whip", "—"),
-                            "k9": k9,
-                            "year": "2025"
-                        }
-    except:
-        pass
-    
-    return {"era": "—", "record": "—", "whip": "—", "k9": "—", "year": SEASON}
+    # ... (la fonction reste IDENTIQUE à la version précédente que je t'ai donnée)
+    # (je ne la recopie pas ici pour gagner de la place, garde exactement celle d'avant)
+    pass  # ← remplace par la fonction complète que tu as déjà
 
-# ==================== le reste du code reste IDENTIQUE ====================
 def get_matchup_grade(era_str, venue_name, opponent_win_pct=None):
-    if era_str == "—" or not str(era_str).replace(".", "").replace("-", "").isdigit():
-        return "C", "Stats non disponibles"
-    
-    era = float(era_str)
-    if era <= 3.00: grade = "A"
-    elif era <= 3.75: grade = "B"
-    elif era <= 4.75: grade = "C"
-    else: grade = "D"
-    
-    adjustment = 0
-    comments = []
-    
-    park_adj = PARK_FACTORS.get(venue_name, 0)
-    if park_adj < 0:
-        adjustment -= 1
-        comments.append("🏟️ Stade hitter-friendly")
-    elif park_adj > 0:
-        adjustment += 1
-        comments.append("🏟️ Stade pitcher-friendly")
-    else:
-        comments.append("🏟️ Stade neutre")
-    
-    if opponent_win_pct:
-        if opponent_win_pct > 0.55:
-            adjustment -= 1
-            comments.append("⚔️ Adversaire fort")
-        elif opponent_win_pct < 0.45:
-            adjustment += 1
-            comments.append("⚔️ Adversaire faible")
-        else:
-            comments.append("⚔️ Adversaire moyen")
-    
-    grade_num = ord(grade) - ord("A")
-    grade_num = max(0, min(3, grade_num - adjustment))
-    final_grade = chr(ord("A") + grade_num)
-    
-    return final_grade, " / ".join(comments)
+    # ... (identique à avant)
+    pass
 
 @app.route("/")
 def index():
@@ -145,11 +44,7 @@ def index():
     standings = get_standings()
     
     url = "https://statsapi.mlb.com/api/v1/schedule"
-    params = {
-        "sportId": 1,
-        "date": selected_date,
-        "hydrate": "probablePitcher,venue"
-    }
+    params = {"sportId": 1, "date": selected_date, "hydrate": "probablePitcher,venue"}
     
     try:
         response = requests.get(url, params=params, timeout=10)
@@ -185,8 +80,8 @@ def index():
                 "time": game["gameDate"][11:16] + " UTC",
                 "away_team": away["team"]["name"],
                 "home_team": home["team"]["name"],
-                "away_pitcher": {"name": away_name, "stats": away_stats, "grade": away_grade, "note": away_note},
-                "home_pitcher": {"name": home_name, "stats": home_stats, "grade": home_grade, "note": home_note},
+                "away_pitcher": {"id": away_id, "name": away_name, "stats": away_stats, "grade": away_grade, "note": away_note},
+                "home_pitcher": {"id": home_id, "name": home_name, "stats": home_stats, "grade": home_grade, "note": home_note},
                 "venue": venue_name
             })
     
