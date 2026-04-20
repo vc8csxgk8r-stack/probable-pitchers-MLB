@@ -1,0 +1,9 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8098:8080"
+    volumes:
+      - ./app:/app
+    environment:
+      - FLASK_ENV=development
