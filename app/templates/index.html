@@ -42,4 +42,61 @@
                     <!-- Away Pitcher -->
                     <div class="text-center">
                         {% if g.away_pitcher.id %}
-                        <img src="https://img.mlbstatic.com
+                            <img src="https://img.mlbstatic.com/mlb-photos/image/upload/w_240,h_240,c_fill,q_auto,f_auto/v1/people/{{ g.away_pitcher.id }}/headshot/67/current" 
+                                 alt="{{ g.away_pitcher.name }}" 
+                                 class="headshot mx-auto mb-3"
+                                 onerror="this.src='https://via.placeholder.com/80/003087/ffffff?text=P'">
+                        {% else %}
+                            <div class="w-20 h-20 mx-auto mb-3 bg-zinc-700 rounded-full flex items-center justify-center text-3xl">👤</div>
+                        {% endif %}
+
+                        <div class="font-semibold text-lg">{{ g.away_pitcher.name }}</div>
+                        <div class="text-sm text-zinc-400 mt-1">
+                            ERA {{ g.away_pitcher.stats.era }} • {{ g.away_pitcher.stats.record }}<br>
+                            WHIP {{ g.away_pitcher.stats.whip }} • K/9 {{ g.away_pitcher.stats.k9 }}
+                        </div>
+                        <div class="inline-block mt-3 px-5 py-1 rounded-2xl text-black font-bold grade-{{ g.away_pitcher.grade }}">
+                            Grade {{ g.away_pitcher.grade }}
+                        </div>
+                    </div>
+
+                    <!-- Home Pitcher -->
+                    <div class="text-center">
+                        {% if g.home_pitcher.id %}
+                            <img src="https://img.mlbstatic.com/mlb-photos/image/upload/w_240,h_240,c_fill,q_auto,f_auto/v1/people/{{ g.home_pitcher.id }}/headshot/67/current" 
+                                 alt="{{ g.home_pitcher.name }}" 
+                                 class="headshot mx-auto mb-3"
+                                 onerror="this.src='https://via.placeholder.com/80/003087/ffffff?text=P'">
+                        {% else %}
+                            <div class="w-20 h-20 mx-auto mb-3 bg-zinc-700 rounded-full flex items-center justify-center text-3xl">👤</div>
+                        {% endif %}
+
+                        <div class="font-semibold text-lg">{{ g.home_pitcher.name }}</div>
+                        <div class="text-sm text-zinc-400 mt-1">
+                            ERA {{ g.home_pitcher.stats.era }} • {{ g.home_pitcher.stats.record }}<br>
+                            WHIP {{ g.home_pitcher.stats.whip }} • K/9 {{ g.home_pitcher.stats.k9 }}
+                        </div>
+                        <div class="inline-block mt-3 px-5 py-1 rounded-2xl text-black font-bold grade-{{ g.home_pitcher.grade }}">
+                            Grade {{ g.home_pitcher.grade }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="bg-zinc-950 px-6 py-4 text-xs text-zinc-400 border-t border-zinc-800">
+                    <div><strong>Stade :</strong> {{ g.venue }}</div>
+                    <div class="mt-2 text-[10px] leading-tight">
+                        👉 Visiteurs : {{ g.away_pitcher.note }}<br>
+                        👉 Domicile : {{ g.home_pitcher.note }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if not games %}
+            <p class="text-center text-zinc-400 mt-12 text-xl">Aucun match ou probable pitchers pas encore annoncés pour cette date.</p>
+        {% endif %}
+    </div>
+</body>
+</html>
