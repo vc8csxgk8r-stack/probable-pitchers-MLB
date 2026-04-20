@@ -7,6 +7,7 @@ app = Flask(__name__)
 
 SEASON = "2026"
 
+# ==================== PARK FACTORS ====================
 PARK_FACTORS = {
     "Coors Field": -1, "Great American Ball Park": -0.5, "Yankee Stadium": -0.5,
     "Fenway Park": -0.5, "Oracle Park": 1, "Dodger Stadium": 1, "T-Mobile Park": 1,
@@ -30,62 +31,52 @@ def get_standings():
         return {}
 
 def get_pitcher_stats(pitcher_id):
-    # ... (la fonction reste IDENTIQUE à la version précédente que je t'ai donnée)
-    # (je ne la recopie pas ici pour gagner de la place, garde exactement celle d'avant)
-    pass  # ← remplace par la fonction complète que tu as déjà
+    """Version complète et robuste"""
+    if not pitcher_id:
+        return {"era": "—", "record": "—", "whip": "—", "k9": "—"}
 
-def get_matchup_grade(era_str, venue_name, opponent_win_pct=None):
-    # ... (identique à avant)
-    pass
-
-@app.route("/")
-def index():
-    selected_date = request.args.get("date", date.today().strftime("%Y-%m-%d"))
-    standings = get_standings()
-    
-    url = "https://statsapi.mlb.com/api/v1/schedule"
-    params = {"sportId": 1, "date": selected_date, "hydrate": "probablePitcher,venue"}
+    # Essai saison 2026
+    url = f"https://statsapi.mlb.com/api/v1/people/{pitcher_id}"
+    params = {"hydrate": f"stats(group=[pitching],type=[season],season={SEASON})"}
     
     try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        people = data.get("people", [])
+        if people:
+            stats_list = people[0].get("stats", [])
+            for group in stats_list:
+                if group.get("group", {}).get("displayName") == "pitching":
+                    splits = group.get("splits", [])
+                    if splits:
+                        stat = splits[0].get("stat", {})
+                        ip = float(stat.get("inningsPitched", 0) or 0)
+                        so = int(stat.get("strikeOuts", 0) or 0)
+                        k9 = round(so / ip * 9, 1) if ip > 0 else 0.0
+                        return {
+                            "era": stat.get("era", "—"),
+                            "record": f"{stat.get('wins',0)}-{stat.get('losses',0)}",
+                            "whip": stat.get("whip", "—"),
+                            "k9": k9
+                        }
     except:
-        data = {"dates": []}
-    
-    games = []
-    if data.get("dates") and len(data["dates"]) > 0:
-        for game in data["dates"][0]["games"]:
-            away = game["teams"]["away"]
-            home = game["teams"]["home"]
-            venue_name = game.get("venue", {}).get("name", "—")
-            
-            # Away pitcher
-            away_p = away.get("probablePitcher", {})
-            away_id = away_p.get("id")
-            away_name = away_p.get("fullName", "TBD")
-            away_stats = get_pitcher_stats(away_id)
-            away_opp_winpct = standings.get(home["team"]["id"])
-            away_grade, away_note = get_matchup_grade(away_stats["era"], venue_name, away_opp_winpct)
-            
-            # Home pitcher
-            home_p = home.get("probablePitcher", {})
-            home_id = home_p.get("id")
-            home_name = home_p.get("fullName", "TBD")
-            home_stats = get_pitcher_stats(home_id)
-            home_opp_winpct = standings.get(away["team"]["id"])
-            home_grade, home_note = get_matchup_grade(home_stats["era"], venue_name, home_opp_winpct)
-            
-            games.append({
-                "time": game["gameDate"][11:16] + " UTC",
-                "away_team": away["team"]["name"],
-                "home_team": home["team"]["name"],
-                "away_pitcher": {"id": away_id, "name": away_name, "stats": away_stats, "grade": away_grade, "note": away_note},
-                "home_pitcher": {"id": home_id, "name": home_name, "stats": home_stats, "grade": home_grade, "note": home_note},
-                "venue": venue_name
-            })
-    
-    return render_template("index.html", games=games, selected_date=selected_date)
+        pass
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    # Fallback saison 2025 (début de saison)
+    try:
+        params["hydrate"] = f"stats(group=[pitching],type=[season],season=2025)"
+        r = requests.get(url, params=params, timeout=8)
+        r.raise_for_status()
+        data = r.json()
+        people = data.get("people", [])
+        if people:
+            stats_list = people[0].get("stats", [])
+            for group in stats_list:
+                if group.get("group", {}).get("displayName") == "pitching":
+                    splits = group.get("splits", [])
+                    if splits:
+                        stat = splits[0].get("stat", {})
+                        ip = float(stat.get("inningsPitched", 0) or 0)
+                        so = int(stat.get("strikeOuts", 0) or 0)
+                        k9 =
